@@ -57,8 +57,8 @@ app.post("/workspace", async (req, res) => {
               ports: [{ containerPort: 8080 }],
               env: [
                 {
-                  name: "PASSWORD",
-                  value: "admin123",
+                 const NAMESPACE = process.env.NAMESPACE || "default";
+                 const PASSWORD = process.env.WORKSPACE_PASSWORD || "admin123";
                 },
               ],
 
@@ -101,7 +101,10 @@ app.post("/workspace", async (req, res) => {
 
   } catch (err) {
     console.error("FULL ERROR:", err.body || err);
-    res.status(500).send("Error creating workspace");
+    res.status(500).json({
+  error: "Workspace creation failed",
+  details: err.body || err.message
+});
   }
 });
 
