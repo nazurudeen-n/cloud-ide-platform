@@ -316,3 +316,278 @@ This project demonstrates:
 The implementation focuses on **clarity, correctness, and practical design**, rather than production complexity.
 
 ---
+
+## 🧠 Implementation Gaps & Design Approach
+
+Due to time constraints, some production-grade features are not fully implemented. However, their design and approach are outlined below.
+
+---
+
+## 🔐 Authentication & Authorization (Design)
+
+A production system would implement **JWT-based authentication with asymmetric keys (RS256)**.
+
+### Flow:
+
+* User authenticates via identity provider (OIDC or custom auth)
+* Control plane verifies JWT signature using public key
+* Each request is authorized against the workspace ID
+
+### Key Points:
+
+* Tokens are short-lived
+* Refresh tokens handled securely
+* Key rotation supported via JWKS endpoint
+
+### Security:
+
+* No reliance on shared secrets
+* Every request validated (not just edge-level)
+
+---
+
+## 🔁 Reconciliation Loop (Design)
+
+A background controller ensures **desired state = actual state**.
+
+### Responsibilities:
+
+* Detect missing pods for active workspaces → recreate
+* Detect orphan pods → delete
+* Sync PVC state with workspace records
+
+### Example Scenarios:
+
+* Pod deleted manually → recreated
+* DB says running but pod missing → fixed
+* Pod exists but no DB record → cleaned
+
+### Implementation Approach:
+
+* Periodic job (every 10–30 seconds)
+* Compare Kubernetes state vs control-plane state
+* Apply corrective actions
+
+---
+
+## 📊 Observability (Design)
+
+A production-ready system would include:
+
+### Logging
+
+* Structured JSON logs
+* Request IDs propagated across services
+
+### Metrics (Prometheus)
+
+* Workspace provisioning latency
+* Active workspace count
+* Error rates
+* Resource usage
+
+### Tracing (OpenTelemetry)
+
+* End-to-end tracing of workspace creation
+
+### Dashboard (Grafana)
+
+* System health overview
+* Resource saturation indicators
+
+---
+
+## ⏱️ Idle Detection & Auto-Reclamation (Design)
+
+Workspaces should be automatically stopped after inactivity.
+
+### Definition of Idle:
+
+* No file changes
+* No terminal input
+* No active processes
+
+### Flow:
+
+1. Track last activity timestamp
+2. If idle > 30 minutes:
+
+   * Notify user (grace period)
+   * Persist state
+   * Stop workspace
+
+### Benefit:
+
+* Reduces resource usage
+* Prevents cost leakage
+
+---
+
+## 💾 Backup & Restore Strategy (Design)
+
+Persistence is handled via PVC, but backups are required for durability.
+
+### Approach:
+
+* Periodic snapshots of volumes
+* Store in external storage (S3/GCS)
+
+### Restore Flow:
+
+* Create new PVC from snapshot
+* Attach to new pod
+* Resume workspace
+
+### Guarantees:
+
+* RPO: up to last snapshot interval (e.g., 5–10 min)
+* RTO: few seconds to reattach and start pod
+
+---
+
+## 🌐 Workspace URL & Access (Design)
+
+Each workspace should have a **unique, unguessable URL**.
+
+### Example:
+
+```id="7o2m3a"
+https://workspace-<random-id>.domain.com
+```
+
+### Implementation:
+
+* Use ingress controller
+* Map subdomain → specific pod/service
+* Secure routing via TLS
+
+---
+
+## ⚠️ Failure Scenarios & Handling
+
+### S1 — Node Failure
+
+* Pods rescheduled on another node
+* PVC reattached
+* User experiences short downtime
+
+---
+
+### S2 — Compromised Workspace
+
+* Isolation prevents access to:
+
+  * Other pods
+  * Control plane
+* NetworkPolicy blocks lateral movement
+
+---
+
+### S3 — Traffic Spike
+
+* API becomes bottleneck first
+* Solution:
+
+  * Horizontal scaling
+  * Queue-based provisioning
+
+---
+
+### S4 — Forced Patch (CVE)
+
+* Rolling restart of pods
+* Persist data via PVC
+* No data loss
+
+---
+
+### S5 — Control Plane Failure
+
+* Running workspaces unaffected
+* New requests may fail temporarily
+
+---
+
+### S6 — Data Loss Claim
+
+* Investigate:
+
+  * PVC state
+  * Logs
+  * Pod restarts
+* Observability required for root cause
+
+---
+
+### S7 — Noisy Neighbor
+
+* Resource limits prevent impact
+* Disk IO limits recommended
+
+---
+
+### S8 — State Mismatch
+
+* Reconciliation loop detects:
+
+  * Missing pod → recreate
+  * Orphan pod → delete
+
+---
+
+## 🏭 Production Readiness Considerations
+
+### Secrets Management
+
+* Use Kubernetes Secrets or external vault
+* Rotate regularly
+
+---
+
+### Image Security
+
+* Use trusted base images
+* Scan for vulnerabilities
+* Pin image versions
+
+---
+
+### Backpressure Handling
+
+* Rate limit API requests
+* Queue workspace creation
+* Reject excess load gracefully
+
+---
+
+### Multi-AZ Deployment
+
+* Distribute nodes across zones
+* Storage must support multi-zone
+
+---
+
+### Cost Considerations
+
+* Scale down idle workspaces
+* Use autoscaling
+* Optimize resource allocation
+
+---
+
+### Data Deletion
+
+* Delete PVC on workspace removal
+* Ensure no residual data
+
+---
+
+### On-Call Readiness
+
+* Alerts:
+
+  * High failure rate
+  * Resource exhaustion
+* Runbooks for common issues
+
+---
