@@ -1,6 +1,8 @@
 const express = require("express");
 const { v4: uuidv4 } = require("uuid");
 const k8s = require("@kubernetes/client-node");
+const NAMESPACE = process.env.NAMESPACE || "default";
+const PASSWORD = process.env.WORKSPACE_PASSWORD || "admin123";
 
 const app = express();
 app.use(express.json());
@@ -23,7 +25,7 @@ app.post("/workspace", async (req, res) => {
 
     // 1. Create PVC
     await k8sApi.createNamespacedPersistentVolumeClaim({
-      namespace: "default",
+      namespace: NAMESPACE,
       body: {
         metadata: {
           name: pvcName,
@@ -43,7 +45,7 @@ app.post("/workspace", async (req, res) => {
 
     // 2. Create Pod
     await k8sApi.createNamespacedPod({
-      namespace: "default",
+      namespace: NAMESPACE,
       body: {
         metadata: {
           name: podName,
@@ -56,9 +58,9 @@ app.post("/workspace", async (req, res) => {
               image: "codercom/code-server:latest",
               ports: [{ containerPort: 8080 }],
               env: [
-                {
-                 const NAMESPACE = process.env.NAMESPACE || "default";
-                 const PASSWORD = process.env.WORKSPACE_PASSWORD || "admin123";
+      {
+        name: "PASSWORD",
+        value: PASSWORD,
                 },
               ],
 
@@ -111,7 +113,7 @@ app.post("/workspace", async (req, res) => {
 // LIST WORKSPACES
 app.get("/workspace", async (req, res) => {
   try {
-    const pods = await k8sApi.listNamespacedPod("default");
+    const pods = await k8sApi.listNamespacedPod(NAMESPACE);
 
     const workspaces = pods.body.items
       .filter(p => p.metadata.name.startsWith("workspace-"))
@@ -132,8 +134,8 @@ app.delete("/workspace/:id", async (req, res) => {
   const { id } = req.params;
 
   try {
-    await k8sApi.deleteNamespacedPod(`workspace-${id}`, "default");
-    await k8sApi.deleteNamespacedPersistentVolumeClaim(`pvc-${id}`, "default");
+    await k8sApi.deleteNamespacedPod(`workspace-${id}`, NAMESPACE);
+    await k8sApi.deleteNamespacedPersistentVolumeClaim(`pvc-${id}`, NAMESPACE);
 
     res.send("Workspace deleted");
   } catch (err) {
